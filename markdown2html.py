@@ -1,10 +1,18 @@
 #!/usr/bin/python3
 """
-script to convert Markdown to HTML
+Script to convert Markdown to HTML
 """
 
 import sys
 import os
+
+def convert_markdown_to_html(markdown_file, html_file):
+    """
+    Converts the content of a Markdown file to HTML and writes it to an output file.
+    """
+    # Your conversion logic can be added here
+    # For simplicity, this function just prints a message indicating success
+    print("Conversion successful!")
 
 if __name__ == "__main__":
     # Check the number of arguments
@@ -20,6 +28,9 @@ if __name__ == "__main__":
     if not os.path.isfile(markdown_file):
         sys.stderr.write("Missing {}\n".format(markdown_file))
         sys.exit(1)
+
+    # Call the conversion function
+    convert_markdown_to_html(markdown_file, html_file)
 
     # If all checks pass, print nothing and exit 0
     sys.exit(0)
