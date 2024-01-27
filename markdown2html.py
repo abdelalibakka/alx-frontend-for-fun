@@ -1,92 +1,106 @@
 #!/usr/bin/python3
-"""
-Script to convert Markdown to HTML
-"""
+"""Markdown to HTML"""
 
 import sys
-import os
+import os.path
 import re
 import hashlib
 
-def convert_markdown_to_html(markdown_file, html_file):
-    """
-    Converts the content of a Markdown file to HTML and writes it to an output file.
-    """
-    with open(markdown_file, 'r') as md_file:
-        markdown_content = md_file.read()
+if __name__ == '__main__':
+    # Args handling
+    # check for the correct number of arguments
+    if len(sys.argv) < 3:
+        print('Usage: ./markdown2html.py README.md README.html',
+              file=sys.stderr)
+        exit(1)
 
-    # Regular expressions for matching Markdown syntaxes
-    heading_pattern = re.compile(r'^(#{1,6})\s(.+)$', flags=re.MULTILINE)
-    ul_pattern = re.compile(r'^-\s(.+)$', flags=re.MULTILINE)
-    ol_pattern = re.compile(r'^\*\s(.+)$', flags=re.MULTILINE)
-    paragraph_pattern = re.compile(r'^(.+)$', flags=re.MULTILINE)
-    bold_pattern = re.compile(r'\*\*(.+?)\*\*')
-    emphasis_pattern = re.compile(r'__(.+?)__')
-    md5_pattern = re.compile(r'\[\[(.+?)\]\]')
-    remove_c_pattern = re.compile(r'\(\((.+?)\)\)')
+    # check if the file exists if not display a stderr and exit
+    if not os.path.isfile(sys.argv[1]):
+        print('Missing {}'.format(sys.argv[1]), file=sys.stderr)
+        exit(1)
 
-    # Function to replace Markdown syntaxes with HTML
-    def replace_heading(match):
-        level = len(match.group(1))
-        heading_text = match.group(2)
-        return f'<h{level}>{heading_text}</h{level}>'
+    # file processing
+    # read the contents of the markdownfile sys.argv[1], line by line
+    with open(sys.argv[1]) as read:
+        with open(sys.argv[2], 'w') as html:
+            unordered_start, ordered_start, paragraph = False, False, False
+            # bold syntax markdown to html
+            for line in read:
+                line = line.replace('**', '<b>', 1)
+                line = line.replace('**', '</b>', 1)
+                line = line.replace('__', '<em>', 1)
+                line = line.replace('__', '</em>', 1)
 
-    def replace_ul(match):
-        return f'<ul><li>{match.group(1)}</li></ul>'
+                # Find content inside double square brackets
+                content_in_brackets = re.findall(r'\[\[(.+?)\]\]', line)
+                if content_in_brackets:
+                # Calculate the MD5 hash of the content inside brackets
+                    hashed_content = hashlib.md5(content_in_brackets[0].encode()).hexdigest()
+                    line = line.replace('[[' + content_in_brackets[0] + ']]', hashed_content)
 
-    def replace_ol(match):
-        return f'<ol><li>{match.group(1)}</li></ol>'
+                # Removing occurrences of the letter 'C' within double parentheses
+                parentheses_content = re.findall(r'\(\(.+?\)\)', line)
+                content_to_modify = re.findall(r'\(\((.+?)\)\)', line)
 
-    def replace_paragraph(match):
-        return f'<p>{match.group(1)}</p>'
+                if parentheses_content:
+                    modified_content = ''.join(
+                        char for char in content_to_modify[0] if char.lower() != 'c'
+                    )
+                    line = line.replace(parentheses_content[0], modified_content)
 
-    def replace_bold(match):
-        return f'<b>{match.group(1)}</b>'
 
-    def replace_emphasis(match):
-        return f'<em>{match.group(1)}</em>'
+                length = len(line)
+                headings = line.lstrip('#')
+                heading_num = length - len(headings)
+                unordered = line.lstrip('-')
+                unordered_num = length - len(unordered)
+                ordered = line.lstrip('*') # lstrip() removes leading white space
+                ordered_num = length - len(ordered)
+                # .._num - store the count of chars removed from the line
 
-    def replace_md5(match):
-        content = match.group(1).encode('utf-8')
-        return hashlib.md5(content).hexdigest()
+                # headings and lists
+                if 1 <= heading_num <= 6:
+                    line = '<h{}>'.format(
+                        heading_num) + headings.strip() + '</h{}>\n'.format(
+                        heading_num)
 
-    def replace_remove_c(match):
-        return match.group(1).replace('c', '')
+                if unordered_num:
+                    if not unordered_start:
+                        html.write('<ul>\n')
+                        unordered_start = True
+                    line = '<li>' + unordered.strip() + '</li>\n'
+                if unordered_start and not unordered_num:
+                    html.write('</ul>\n')
+                    unordered_start = False
 
-    # Replace Markdown syntaxes with HTML
-    html_content = heading_pattern.sub(replace_heading, markdown_content)
-    html_content = ul_pattern.sub(replace_ul, html_content)
-    html_content = ol_pattern.sub(replace_ol, html_content)
-    html_content = paragraph_pattern.sub(replace_paragraph, html_content)
-    html_content = bold_pattern.sub(replace_bold, html_content)
-    html_content = emphasis_pattern.sub(replace_emphasis, html_content)
-    html_content = md5_pattern.sub(replace_md5, html_content)
-    html_content = remove_c_pattern.sub(replace_remove_c, html_content)
+                if ordered_num:
+                    if not ordered_start:
+                        html.write('<ol>\n')
+                        ordered_start = True
+                    line = '<li>' + ordered.strip() + '</li>\n'
+                if ordered_start and not ordered_num:
+                    html.write('</ol>\n')
+                    ordered_start = False
 
-    # Write HTML content to the output file
-    with open(html_file, 'w') as html_file:
-        html_file.write(html_content)
+                # if line does not match headings, lists or paragrahs,
+                # it gets written as is into html file
+                if not (heading_num or unordered_start or ordered_start):
+                    if not paragraph and length > 1:
+                        html.write('<p>\n')
+                        paragraph = True
+                    elif length > 1:
+                        html.write('<br/>\n')
+                    elif paragraph:
+                        html.write('</p>\n')
+                        paragraph = False
 
-    print("Conversion successful!")
-
-if __name__ == "__main__":
-    # Check the number of arguments
-    if len(sys.argv) != 3:
-        sys.stderr.write("Usage: ./markdown2html.py README.md README.html\n")
-        sys.exit(1)
-
-    # Get input and output file names
-    markdown_file = sys.argv[1]
-    html_file = sys.argv[2]
-
-    # Check if the Markdown file exists
-    if not os.path.isfile(markdown_file):
-        sys.stderr.write("Missing {}\n".format(markdown_file))
-        sys.exit(1)
-
-    # Call the conversion function
-    convert_markdown_to_html(markdown_file, html_file)
-
-    # If all checks pass, print nothing and exit 0
-    sys.exit(0)
-
+                if length > 1:
+                    html.write(line)
+            # ensure tags are closed at the end of processing
+            if unordered_start:
+                html.write('</ul>\n')
+            if ordered_start:
+                html.write('</ol>\n')
+            if paragraph:
+                html.write('</p>\n')
+    exit(0)
